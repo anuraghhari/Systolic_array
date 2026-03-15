@@ -18,6 +18,18 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
+
+/* WORKS TO BE DONE
+
+BRAM FOR BIAS AND WEIGHTS SHOULD GET AN EXTERNAL ADDRESS FROM WHICH DATA IS TO BE START READING
+TOP MODULE CONTROLS THE ADDRESS OF BRAM ACCORDING TO THE NEED
+
+MAKE START LATCHED ACCORDING TO DMA SIGNALS OF HANDSHAKE
+
+pixel data should be available two clock cycles after start
+
+*/
+
 //====================================================
 // DSP-based Multiply Accumulate (MAC)
 // Uses 1 DSP slice (DSP48)
@@ -68,13 +80,13 @@
 
                 if (rst) begin
                    
-                    acc_out   <= 0;
+                    acc_out     <= 0;
                     mac_cnt     <= 0;
                     valid_out_d <= 0;
                     valid_out_w <= 0;
                     a_shifted   <= 0;
                     b_shifted   <= 0;
-                    buff_sel <= 1'b0;
+                    buff_sel    <= 1'b0;
 
                 end 
 
@@ -94,8 +106,6 @@
                 else begin
                     valid_out_d <= 1'b0;
                     valid_out_w <= 1'b0;
-                    a_shifted <= 'b0;
-                    b_shifted <= 'b0;
                 end               
             end
 
@@ -191,8 +201,6 @@ module Sys_array_test #
     genvar i;
     generate
         for (i = 0; i < N; i = i + 1) begin : init_bram_d
-
-           
             delay #(
                 .WIDTH    (16),
                 .D        (i)
@@ -270,7 +278,7 @@ module Sys_array_test #
 
             buff_ch <= buff_sel[N-1][M-1];
             ready <= buff_ch ^ buff_sel[N-1][M-1];
-            //  ready <= done;
+            //ready <= done;
 
 
             for (int r = 0; r < N; r = r + 1)
@@ -285,8 +293,7 @@ module Sys_array_test #
                 for (int r = 0; r < N; r++)
                     for (int c = 0; c < M; c++)
                         final_out[r][c] = buff_sel[N-1][M-1] ? acc_out2[r][c][OUT_WIDTH-1:0] : acc_out1[r][c][OUT_WIDTH-1:0];
-            end
-                
+            end   
         end
     end
   
@@ -305,45 +312,43 @@ module bram_reader #(
     input  wire        clk,
     input  wire        rst,
     input  wire        start,
+    input  wire  [9:0] addr_in_w,
     input  wire [DATA_WIDTH*M-1:0] bram_read,   
     output reg  [DATA_WIDTH*M-1:0] bram_write,
     output  wire [DATA_WIDTH*M-1:0] kernel, 
     output reg  [9:0] bram_addr,
     output wire [31:0]  bram_wr_en,
-    output reg        bram_en,
+    output         bram_en,
     output reg kernel_ready
 
 );
-
     
-    reg [9:0] addr_countr;
-   
+    reg  [9:0] addr_cnt;
     assign bram_wr_en = 32'b0;
     
     assign kernel = bram_read;
-
+    assign bram_en = start;
+   
     always @(posedge clk) begin
         if (rst) begin
-            addr_countr  <= 'b0;
-            bram_addr    <= 'b0;
-            bram_en  <= 1'b0;
             kernel_ready <= 1'b0;
+            bram_addr <= 'b0;
+            addr_cnt <= 'b0;
         end
         else if (start) begin
-            bram_en <= 1'b1;
-            bram_addr  <= addr_countr;
-            addr_countr <= addr_countr + 1; // add limit if needed
+            bram_addr <= bram_addr+1;
+            addr_cnt <= addr_cnt + 1;
             kernel_ready <= bram_en;
         end
         else begin
-            bram_en <= 1'b0;
-            bram_addr  <= 'b0;
-            addr_countr <= 'b0;   // add limit if needed
             kernel_ready <= 1'b0;
         end
 
     end
 endmodule
+
+
+
 
 module bias_reader #(
     parameter DATA_WIDTH = 16,
@@ -364,6 +369,7 @@ module bias_reader #(
 );
 
     reg       started;   // sticky latch
+    logic [$clog2(K)-1:0] counter;
 
     assign bias_wr_en = 32'b0;
     assign bias       = bias_read;
@@ -374,30 +380,34 @@ module bias_reader #(
             bias_en     <= 1'b0;
             started     <= 1'b0;
             bias_ready <= 1'b0;
+            counter <= 'b0;
         end
 
 
         else if (bias_valid) begin
             started <= 1'b1;
             bias_addr <= bias_addr + 1;
+            counter <= counter + 1;
         end
 
         else if (started) begin
             bias_addr <= bias_addr + 1;
-            started <= start;
+            started <= (counter == K-1) ? 1'b0 : 1'b1;
+            counter <= (counter == K-1) ? 'b0 : counter+1;
         end
 
         else if (start) begin
             bias_en <= 1'b1;
-            bias_addr <= 'b0;
         end
 
+
+        
     end
 
 endmodule
 
 
-module control#(
+module feeder#(
     parameter DATA_WIDTH = 16,
     parameter ACC_WIDTH =48,
     parameter OUT_WIDTH = 32,
@@ -409,18 +419,20 @@ module control#(
     input clk,
     input rst,
     input start,
-    input logic [DATA_WIDTH*N-1:0] pixel,
-    input  wire [DATA_WIDTH*M-1:0] bram_read,   
+    //input valid,
+    //input last,
+    input logic signed [DATA_WIDTH*N-1:0] pixel,
+    input  wire signed [DATA_WIDTH*M-1:0] bram_read, 
+    input  wire signed [OUT_WIDTH*M-1:0] bias_read,     
     output reg  [DATA_WIDTH*M-1:0] bram_write,
     output reg  [9:0] bram_addr,
     output wire [31:0]  bram_wr_en,
     output wire        bram_en,
-
-    input  wire [DATA_WIDTH*M-1:0] bias_read,   
     output reg  [DATA_WIDTH*M-1:0] bias_write,
     output reg  [9:0] bias_addr,
     output wire [31:0]  bias_wr_en,
     output wire        bias_en,
+    output wire ready,
 
     output reg [OUT_WIDTH*N-1:0] data_out
     
@@ -428,24 +440,26 @@ module control#(
 
     logic signed [DATA_WIDTH-1:0] data_in [0:N-1];
     logic signed [DATA_WIDTH-1:0] weight_in [0:M-1];
-    logic signed [OUT_WIDTH-1:0] final_out [0:N-1][0:M-1]; // TRUNCATED TO DATA WIDTH
-    logic signed [OUT_WIDTH*N-1:0] bias;  //TRUNCATED TO DATA WIDTH
+    logic signed [OUT_WIDTH-1:0] final_out [0:N-1][0:M-1]; // TRUNCATED TO OUT WIDTH
+    logic signed [OUT_WIDTH*N-1:0] bias;  //TRUNCATED TO OUT WIDTH
     logic valid_in_d [0:N-1];
     logic valid_in_w [0:M-1];
     logic kernel_ready, bias_ready;
     logic [DATA_WIDTH*M-1:0] kernel;
-    logic ready;
     logic bias_start,acc_start,started;
     logic [$clog2(N)-1:0] counter;
 
     logic signed [OUT_WIDTH*M-1:0] data_array [0:N-1];
 
+    reg [9:0] addr_in_w;
+    reg [9:0] addr_in_b;
+    //reg start;
+
     genvar i, j;
     generate
         for (i = 0; i < N; i++) begin : ROWS
             for (j = 0; j < M; j++) begin : COLS
-                assign data_array[i][(M-j)*OUT_WIDTH-1 -: OUT_WIDTH]
-                    = final_out[i][j];
+                assign data_array[i][(M-j)*OUT_WIDTH-1 -: OUT_WIDTH] = final_out[i][j];
             end
         end
     endgenerate
@@ -477,6 +491,7 @@ module control#(
         .clk             (clk),
         .rst             (rst),
         .start           (start),
+        .addr_in_w       (addr_in_w),
         .bram_read       (bram_read),
         .bram_write      (bram_write),
         .kernel          (kernel),
@@ -486,7 +501,7 @@ module control#(
         .kernel_ready    (kernel_ready)
     );
 
-        bias_reader #(
+       bias_reader #(
         .DATA_WIDTH    (DATA_WIDTH),
         .K             (M)
     ) u_bias_reader (
@@ -503,26 +518,16 @@ module control#(
         .bias_wr_en    (bias_wr_en),
         .bias_en       (bias_en)
     );
-
         
 
     always @(posedge clk) begin
 
         bias_start <= ready;
-        //acc_start  <= bias_start;
-
-        /*if (bias_start) begin
-            for (int i = 0; i < N; i++) begin
-                for (int j = 0; j < M; j++) begin
-                    data_array[i][(M-j)*OUT_WIDTH-1 -: OUT_WIDTH]
-                        <= final_out[i][j];
-                end
-            end
-        end*/
-
+       
         if(rst) begin
             counter <= 'b0;
             started <= 1'b0;
+
             for (int i = 0; i < N; i++) begin
                 data_in[i] <= 'b0;
                 valid_in_d[i] <='b0;
@@ -532,46 +537,119 @@ module control#(
                 valid_in_w[j] <='b0;
             end
 
-        end
-
-        else if (start && kernel_ready) begin
-           for (int k = 0; k < N; k++) begin
-                data_in[k] <= pixel[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
-                valid_in_d[k] <= 1'b1;
-            end
-            for (int l = 0; l < M; l++) begin
-                weight_in[l] <= kernel[(M-1-l)*DATA_WIDTH +: DATA_WIDTH];
-                valid_in_w[l] <='b1;
-            end
         end
 
         else begin
-            for (int i = 0; i < N; i++) begin
-                data_in[i] <= 'b0;
-                valid_in_d[i] <='b0;
-            end
-            for (int j = 0; j < M; j++) begin
-                weight_in[j] <= 'b0;
-                valid_in_w[j] <='b0;
-            end
-        end 
+            
+            if (kernel_ready) begin
+                for (int k = 0; k < N; k++) begin
+                        data_in[k] <= pixel[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
+                        valid_in_d[k] <= 1'b1;
+                    end
+                    for (int l = 0; l < M; l++) begin
+                        weight_in[l] <= kernel[(M-1-l)*DATA_WIDTH +: DATA_WIDTH];
+                        valid_in_w[l] <= 1'b1;
+                    end
+                end
 
-        if (bias_start) begin
-            started <= 1'b1;
-            counter <= (counter == N-1) ? 'b0 : counter+1;
-            data_out <= bias + data_array[counter];
-        end
+            else begin
+                for (int i = 0; i < N; i++) begin
+                    //data_in[i] <= 'b0;
+                    valid_in_d[i] <='b0;
+                end
+                for (int j = 0; j < M; j++) begin
+                    //weight_in[j] <= 'b0;
+                    valid_in_w[j] <='b0;
+                end
+            end 
 
-        else if (started) begin
-            started <= start;
-            counter <= (counter == N-1) ? 'b0 : counter+1;
-            data_out <= bias + data_array[counter];
+
+            
+
+            if (bias_start) begin
+                started <= 1'b1;
+                counter <= counter+1;
+                data_out <= bias + data_array[counter];
+            end
+
+            else if (started) begin
+                
+                started <= (counter == N-1) ? 1'b0 : 1'b1;
+                counter <= (counter == N-1) ? 'b0 : counter+1;
+                data_out <= bias + data_array[counter];
+            end
         end
     end
 
 
+endmodule
+
+
+
+module top_control #(
+    parameter DATA_WIDTH = 16,
+    parameter ACC_WIDTH =48,
+    parameter OUT_WIDTH = 32,
+    parameter N = 9,
+    parameter M = 9
+    
+)
+(
+
+    input clk,
+    input rst,
+    input valid,
+    input last,
+    input logic [DATA_WIDTH*N-1:0] pixel,
+    input  wire [DATA_WIDTH*M-1:0] bram_read,   
+    output reg  [DATA_WIDTH*M-1:0] bram_write,
+    output reg  [9:0] bram_addr,
+    output wire [31:0]  bram_wr_en,
+    output wire        bram_en,
+
+    input  wire [DATA_WIDTH*M-1:0] bias_read,   
+    output reg  [DATA_WIDTH*M-1:0] bias_write,
+    output reg  [9:0] bias_addr,
+    output wire [31:0]  bias_wr_en,
+    output wire        bias_en,
+
+    output reg [OUT_WIDTH*N-1:0] data_out
+);
+
+
 
 endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 module double_buffer
