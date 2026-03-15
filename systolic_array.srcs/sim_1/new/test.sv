@@ -135,7 +135,8 @@
 
 endmodule*/
 
-`timescale 1ns/1ps
+
+`timescale 1ns / 1ps
 
 module tb_control;
 
@@ -143,8 +144,8 @@ module tb_control;
     // Parameters
     // --------------------------------------------------
     parameter DATA_WIDTH = 16;
-    parameter ACC_WIDTH = 48;
-    parameter OUT_WIDTH = 32;
+    parameter ACC_WIDTH  = 48;
+    parameter OUT_WIDTH  = 32;
     parameter N = 9;
     parameter M = 9;
 
@@ -154,42 +155,48 @@ module tb_control;
     reg clk;
     reg rst;
     reg start;
+    //reg valid;
+    //reg last;
 
     reg  [DATA_WIDTH*N-1:0] pixel;
     reg  [DATA_WIDTH*M-1:0] bram_read;
-    reg  [OUT_WIDTH*M-1:0] bias_read;
+    reg  [OUT_WIDTH*M-1:0]  bias_read;
 
     wire [DATA_WIDTH*M-1:0] bram_write;
     wire [9:0]              bram_addr;
     wire [31:0]             bram_wr_en;
     wire                    bram_en;
+    wire                    ready;
 
     wire [DATA_WIDTH*M-1:0] bias_write;
     wire [9:0]              bias_addr;
     wire [31:0]             bias_wr_en;
     wire                    bias_en;
-    wire [OUT_WIDTH*N-1:0] data_out;
+
+    wire [OUT_WIDTH*N-1:0]  data_out;
+
     // --------------------------------------------------
-    // Memories (TB-side)
+    // TB-side memories
     // --------------------------------------------------
     reg [DATA_WIDTH*N-1:0] pixel_mem  [0:255];
     reg [DATA_WIDTH*M-1:0] weight_mem [0:255];
-    reg [DATA_WIDTH*M-1:0] bias_mem [0:255];
+    reg [OUT_WIDTH*M-1:0]  bias_mem   [0:255];
 
     // --------------------------------------------------
-    // Instantiate DUT
+    // DUT
     // --------------------------------------------------
-  
-        control #(
-        .DATA_WIDTH    (DATA_WIDTH),
-        .ACC_WIDTH     (ACC_WIDTH),
-        .OUT_WIDTH     (OUT_WIDTH),
-        .N             (N),
-        .M             (M)
-    ) u_control (
+        feeder #(
+        .DATA_WIDTH    (16),
+        .ACC_WIDTH     (48),
+        .OUT_WIDTH     (32),
+        .N             (9),
+        .M             (9)
+    ) u_feeder (
         .clk           (clk),
         .rst           (rst),
         .start         (start),
+        //input valid,
+        //input last,
         .pixel         (pixel),
         .bram_read     (bram_read),
         .bram_write    (bram_write),
@@ -201,16 +208,16 @@ module tb_control;
         .bias_addr     (bias_addr),
         .bias_wr_en    (bias_wr_en),
         .bias_en       (bias_en),
+        .ready         (ready),
         .data_out      (data_out)
     );
-
     // --------------------------------------------------
-    // Clock generation (100 MHz)
+    // Clock (100 MHz)
     // --------------------------------------------------
     always #5 clk = ~clk;
 
     // --------------------------------------------------
-    // Synchronous BRAM model (1-cycle latency)
+    // BRAM model (1-cycle latency)
     // --------------------------------------------------
     always @(posedge clk) begin
         if (bram_en)
@@ -223,41 +230,99 @@ module tb_control;
     end
 
     // --------------------------------------------------
+    // Monitor output
+    // --------------------------------------------------
+    always @(posedge clk) begin
+        if (ready) begin
+            $display("[%0t] OUTPUT = %h", $time, data_out);
+        end
+    end
+
+    // --------------------------------------------------
     // Test sequence
     // --------------------------------------------------
     initial begin
+        // Init
         clk   = 0;
         rst   = 1;
-        start = 0;
+        //valid = 0;
+        //last  = 0;
         pixel = 0;
         bram_read = 0;
+        bias_read = 0;
 
         // Load memories
-        $readmemh("pixel.mem",  pixel_mem);
+        $readmemh("pixel.mem",   pixel_mem);
         $readmemh("weights.mem", weight_mem);
-        $readmemh("bias.mem",bias_mem);
+        $readmemh("bias.mem",    bias_mem);
 
         // Reset
-        #20;
-        rst = 0;
+        repeat (4) @(posedge clk);
+        rst <= 0;
 
-        // Start pulse
+
         @(posedge clk);
-        start <= 1;
-        @(posedge clk);
+        start <=1;
+
         // --------------------------------------------------
-        // STREAM pixels + kernels TOGETHER
+        // STREAM PIXELS (0 → 9)
         // --------------------------------------------------
-        for (int i = 0; i < 64; i++) begin
+        for (int i = 0; i < 15; i++) begin
             @(posedge clk);
             pixel <= pixel_mem[i];
         end
 
-        // Stop
-        //@(posedge clk);
-        //start <= 0;
+        @(posedge clk);
+        start <=0;
+        pixel <= pixel_mem[15];
 
-        #200;
+
+        repeat (15) @(posedge clk);
+
+        @(posedge clk);
+        start <=1;
+    
+
+        for (int i = 16; i < 64; i++) begin
+            @(posedge clk);
+            pixel <= pixel_mem[i];
+        end
+
+        blaaaaaaaaaaaaaaaah
+
+
+
+        // --------------------------------------------------
+        // LAST pulse (aligned!)
+        // --------------------------------------------------
+        /*@(posedge clk);
+        last <= 1;
+        
+        @(posedge clk);
+        last <= 0;
+        
+        repeat (5) @(posedge clk);
+
+        @(posedge clk);
+        valid <=1;
+        
+        @(posedge clk);
+        valid <= 0;*/
+
+
+        // --------------------------------------------------
+        // CONTINUE PIXELS (10 → 63)
+        // --------------------------------------------------
+        /*for (int i = 11; i < 64; i++) begin
+            @(posedge clk);
+            pixel <= pixel_mem[i];
+        end*/
+
+        // --------------------------------------------------
+        // Drain pipeline
+        // --------------------------------------------------
+        repeat (100) @(posedge clk);
+
         $finish;
     end
 
