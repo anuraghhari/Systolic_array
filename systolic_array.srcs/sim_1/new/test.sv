@@ -288,8 +288,7 @@ module tb_control;
             pixel <= pixel_mem[i];
         end
 
-        blaaaaaaaaaaaaaaaah
-
+        
 
 
         // --------------------------------------------------
