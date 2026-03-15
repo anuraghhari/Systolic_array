@@ -288,40 +288,11 @@ module tb_control;
             pixel <= pixel_mem[i];
         end
 
-        
+        // Stop
+        //@(posedge clk);
+        //start <= 0;
 
-
-        // --------------------------------------------------
-        // LAST pulse (aligned!)
-        // --------------------------------------------------
-        /*@(posedge clk);
-        last <= 1;
-        
-        @(posedge clk);
-        last <= 0;
-        
-        repeat (5) @(posedge clk);
-
-        @(posedge clk);
-        valid <=1;
-        
-        @(posedge clk);
-        valid <= 0;*/
-
-
-        // --------------------------------------------------
-        // CONTINUE PIXELS (10 → 63)
-        // --------------------------------------------------
-        /*for (int i = 11; i < 64; i++) begin
-            @(posedge clk);
-            pixel <= pixel_mem[i];
-        end*/
-
-        // --------------------------------------------------
-        // Drain pipeline
-        // --------------------------------------------------
-        repeat (100) @(posedge clk);
-
+        #200;
         $finish;
     end
 
