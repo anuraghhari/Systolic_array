@@ -152,13 +152,22 @@ module tb_control;
     // --------------------------------------------------
     reg clk;
     reg rst;
-    reg start;
-    //reg valid;
-    //reg last;
+ 
 
     reg  [DATA_WIDTH*N-1:0] pixel;
     reg  [DATA_WIDTH*M-1:0] bram_read;
     reg  [OUT_WIDTH*M-1:0]  bias_read;
+    
+    reg s_axis_tvalid   ;
+    reg s_axis_tlast    ;
+    reg [DATA_WIDTH*N-1:0] s_axis_tdata    ;
+    wire s_axis_tready   ;
+
+    reg  m_axis_tready;
+    wire m_axis_tvalid;
+    wire m_axis_tlast;
+    wire [OUT_WIDTH*N-1:0] m_axis_tdata;
+    
 
     wire [DATA_WIDTH*M-1:0] bram_write;
     wire [9:0]              bram_addr;
@@ -170,8 +179,9 @@ module tb_control;
     wire [9:0]              bias_addr;
     wire [31:0]             bias_wr_en;
     wire                    bias_en;
+    wire s_axis_tready;
 
-    wire [OUT_WIDTH*N-1:0]  data_out;
+
 
     // --------------------------------------------------
     // TB-side memories
@@ -183,32 +193,34 @@ module tb_control;
     // --------------------------------------------------
     // DUT
     // --------------------------------------------------
-        feeder #(
-        .DATA_WIDTH    (16),
-        .ACC_WIDTH     (48),
-        .OUT_WIDTH     (32),
-        .N             (9),
-        .M             (9)
-    ) u_feeder (
-        .clk           (clk),
-        .rst           (rst),
-        .start         (start),
-        //input valid,
-        //input last,
-        .pixel         (pixel),
-        .bram_read     (bram_read),
-        .bram_write    (bram_write),
-        .bram_addr     (bram_addr),
-        .bram_wr_en    (bram_wr_en),
-        .bram_en       (bram_en),
-        .bias_read     (bias_read),
-        .bias_write    (bias_write),
-        .bias_addr     (bias_addr),
-        .bias_wr_en    (bias_wr_en),
-        .bias_en       (bias_en),
-        .ready         (ready),
-        .data_out      (data_out)
-    );
+    sys_feeder #(
+    .DATA_WIDTH       (16),
+    .ACC_WIDTH        (48),
+    .OUT_WIDTH        (32),
+    .N                (9),
+    .M                (9)
+) u_feeder (
+    .clk              (clk),
+    .rst              (rst),
+    .s_axis_tvalid    (s_axis_tvalid),
+    .s_axis_tlast     (s_axis_tlast),
+    .s_axis_tdata     (s_axis_tdata),
+    .s_axis_tready    (s_axis_tready),
+    .bram_read        (bram_read),
+    .bias_read        (bias_read),
+    .bram_write       (bram_write),
+    .bram_addr        (bram_addr),
+    .bram_wr_en       (bram_wr_en),
+    .bram_en          (bram_en),
+    .bias_write       (bias_write),
+    .bias_addr        (bias_addr),
+    .bias_wr_en       (bias_wr_en),
+    .bias_en          (bias_en),
+    .m_axis_tready    (m_axis_tready),
+    .m_axis_tvalid    (m_axis_tvalid),
+    .m_axis_tlast     (m_axis_tlast),
+    .m_axis_tdata     (m_axis_tdata)
+);
     // --------------------------------------------------
     // Clock (100 MHz)
     // --------------------------------------------------
@@ -227,14 +239,7 @@ module tb_control;
             bias_read <= bias_mem[bias_addr];
     end
 
-    // --------------------------------------------------
-    // Monitor output
-    // --------------------------------------------------
-    always @(posedge clk) begin
-        if (ready) begin
-            $display("[%0t] OUTPUT = %h", $time, data_out);
-        end
-    end
+
 
     // --------------------------------------------------
     // Test sequence
@@ -245,9 +250,13 @@ module tb_control;
         rst   = 1;
         //valid = 0;
         //last  = 0;
-        pixel = 0;
+        s_axis_tdata = 0;
         bram_read = 0;
         bias_read = 0;
+
+        s_axis_tlast =0;
+        s_axis_tvalid =0;
+        m_axis_tready =1;
 
         // Load memories
         $readmemh("pixel.mem",   pixel_mem);
@@ -256,70 +265,56 @@ module tb_control;
 
         // Reset
         repeat (4) @(posedge clk);
-        rst <= 0;
+        rst = 0;
 
 
-        @(posedge clk);
-        start <=1;
+            // Start transaction
+        @(negedge clk);
+        s_axis_tvalid = 1'b1;
 
-        // --------------------------------------------------
-        // STREAM PIXELS (0 → 9)
-        // --------------------------------------------------
-        for (int i = 0; i < 15; i++) begin
-            @(posedge clk);
-            pixel <= pixel_mem[i];
+        for (int i = 0; i < 9; i++) begin
+
+            // Wait until DUT is ready
+            wait (s_axis_tready == 1'b1);
+
+            @(negedge clk);
+            s_axis_tdata = pixel_mem[i];
+            s_axis_tlast = (i == 8);
+
         end
 
-        @(posedge clk);
-        start <=0;
-        pixel <= pixel_mem[15];
+        // End transaction
+        @(negedge clk);
+        s_axis_tvalid = 1'b0;
+        s_axis_tlast  = 1'b0;
 
 
-        repeat (15) @(posedge clk);
+        repeat(20) @(negedge clk);
+            // Start transaction
+        @(negedge clk);
+        s_axis_tvalid = 1'b1;
 
-        @(posedge clk);
-        start <=1;
-    
+        for (int i = 0; i < 9; i++) begin
 
-        for (int i = 16; i < 64; i++) begin
-            @(posedge clk);
-            pixel <= pixel_mem[i];
+            // Wait until DUT is ready
+            wait (s_axis_tready == 1'b1);
+
+            @(negedge clk);
+            s_axis_tdata = pixel_mem[i];
+            s_axis_tlast = (i == 8);
+
+        end
+
+        // End transaction
+        @(negedge clk);
+        s_axis_tvalid = 1'b0;
+        s_axis_tlast  = 1'b0;
+
+            $finish;
         end
 
 
 
-        // --------------------------------------------------
-        // LAST pulse (aligned!)
-        // --------------------------------------------------
-        /*@(posedge clk);
-        last <= 1;
-        
-        @(posedge clk);
-        last <= 0;
-        
-        repeat (5) @(posedge clk);
 
-        @(posedge clk);
-        valid <=1;
-        
-        @(posedge clk);
-        valid <= 0;*/
-
-
-        // --------------------------------------------------
-        // CONTINUE PIXELS (10 → 63)
-        // --------------------------------------------------
-        /*for (int i = 11; i < 64; i++) begin
-            @(posedge clk);
-            pixel <= pixel_mem[i];
-        end*/
-
-        // --------------------------------------------------
-        // Drain pipelin
-        // --------------------------------------------------
-        repeat (100) @(posedge clk);
-
-        $finish;
-    end
 
 endmodule

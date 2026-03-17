@@ -11,15 +11,15 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="574.660 ns"></ZoomStartTime>
-      <ZoomEndTime time="848.261 ns"></ZoomEndTime>
-      <Cursor1Time time="1,000.000 ns"></Cursor1Time>
+      <ZoomStartTime time="0.000 ns"></ZoomStartTime>
+      <ZoomEndTime time="684.001 ns"></ZoomEndTime>
+      <Cursor1Time time="7,665,515.000 ns"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="78"></NameColumnWidth>
       <ValueColumnWidth column_width="76"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="18" />
+   <WVObjectSize size="12" />
    <wvobject type="logic" fp_name="/tb_control/clk">
       <obj_property name="ElementShortName">clk</obj_property>
       <obj_property name="ObjectShortName">clk</obj_property>
@@ -36,18 +36,41 @@
       <obj_property name="ElementShortName">kernel_ready</obj_property>
       <obj_property name="ObjectShortName">kernel_ready</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/tb_control/u_feeder/pixel">
-      <obj_property name="ElementShortName">pixel[143:0]</obj_property>
-      <obj_property name="ObjectShortName">pixel[143:0]</obj_property>
+   <wvobject type="group" fp_name="group222">
+      <obj_property name="label">AXI_slave</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/s_axis_tvalid">
+         <obj_property name="ElementShortName">s_axis_tvalid</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tvalid</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/s_axis_tlast">
+         <obj_property name="ElementShortName">s_axis_tlast</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tlast</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/s_axis_tready">
+         <obj_property name="ElementShortName">s_axis_tready</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tready</obj_property>
+      </wvobject>
    </wvobject>
-   <wvobject type="array" fp_name="/tb_control/u_feeder/bram_read">
-      <obj_property name="ElementShortName">bram_read[143:0]</obj_property>
-      <obj_property name="ObjectShortName">bram_read[143:0]</obj_property>
+   <wvobject type="group" fp_name="group409">
+      <obj_property name="label">External IN</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject type="array" fp_name="/tb_control/u_feeder/s_axis_tdata">
+         <obj_property name="ElementShortName">s_axis_tdata[143:0]</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tdata[143:0]</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/tb_control/u_feeder/bram_read">
+         <obj_property name="ElementShortName">bram_read[143:0]</obj_property>
+         <obj_property name="ObjectShortName">bram_read[143:0]</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/tb_control/bram_addr">
+         <obj_property name="ElementShortName">bram_addr[9:0]</obj_property>
+         <obj_property name="ObjectShortName">bram_addr[9:0]</obj_property>
+      </wvobject>
    </wvobject>
    <wvobject type="group" fp_name="group2029">
       <obj_property name="label">SYS_ARRAY</obj_property>
       <obj_property name="DisplayName">label</obj_property>
-      <obj_property name="isExpanded"></obj_property>
       <wvobject type="array" fp_name="/tb_control/u_feeder/u_Sys_array_test/data_in">
          <obj_property name="ElementShortName">data_in[0:8][15:0]</obj_property>
          <obj_property name="ObjectShortName">data_in[0:8][15:0]</obj_property>
@@ -78,48 +101,51 @@
    <wvobject type="group" fp_name="group2757">
       <obj_property name="label">CONTROL</obj_property>
       <obj_property name="DisplayName">label</obj_property>
-      <obj_property name="isExpanded"></obj_property>
-   </wvobject>
-   <wvobject type="array" fp_name="/tb_control/u_feeder/counter">
-      <obj_property name="ElementShortName">counter[3:0]</obj_property>
-      <obj_property name="ObjectShortName">counter[3:0]</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/tb_control/bias_en">
-      <obj_property name="ElementShortName">bias_en</obj_property>
-      <obj_property name="ObjectShortName">bias_en</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/tb_control/u_feeder/u_Sys_array_test/ready">
-      <obj_property name="ElementShortName">ready</obj_property>
-      <obj_property name="ObjectShortName">ready</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/tb_control/u_feeder/bias_start">
-      <obj_property name="ElementShortName">bias_start</obj_property>
-      <obj_property name="ObjectShortName">bias_start</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="/tb_control/u_feeder/started">
-      <obj_property name="ElementShortName">started</obj_property>
-      <obj_property name="ObjectShortName">started</obj_property>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/u_Sys_array_test/ready">
+         <obj_property name="ElementShortName">ready</obj_property>
+         <obj_property name="ObjectShortName">ready</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/bias_start">
+         <obj_property name="ElementShortName">bias_start</obj_property>
+         <obj_property name="ObjectShortName">bias_start</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/started">
+         <obj_property name="ElementShortName">started</obj_property>
+         <obj_property name="ObjectShortName">started</obj_property>
+      </wvobject>
    </wvobject>
    <wvobject type="array" fp_name="/tb_control/u_feeder/final_out">
       <obj_property name="ElementShortName">final_out[0:8][0:8][31:0]</obj_property>
       <obj_property name="ObjectShortName">final_out[0:8][0:8][31:0]</obj_property>
+      <obj_property name="Radix">HEXRADIX</obj_property>
    </wvobject>
    <wvobject type="array" fp_name="/tb_control/u_feeder/data_array">
       <obj_property name="ElementShortName">data_array[0:8][287:0]</obj_property>
       <obj_property name="ObjectShortName">data_array[0:8][287:0]</obj_property>
-      <obj_property name="isExpanded"></obj_property>
    </wvobject>
    <wvobject type="array" fp_name="/tb_control/u_feeder/bias">
       <obj_property name="ElementShortName">bias[287:0]</obj_property>
       <obj_property name="ObjectShortName">bias[287:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/tb_control/bias_addr">
-      <obj_property name="ElementShortName">bias_addr[9:0]</obj_property>
-      <obj_property name="ObjectShortName">bias_addr[9:0]</obj_property>
-      <obj_property name="Radix">SIGNEDDECRADIX</obj_property>
-   </wvobject>
-   <wvobject type="array" fp_name="/tb_control/data_out">
-      <obj_property name="ElementShortName">data_out[287:0]</obj_property>
-      <obj_property name="ObjectShortName">data_out[287:0]</obj_property>
+   <wvobject type="group" fp_name="group427">
+      <obj_property name="label">AXI Master</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/m_axis_tready">
+         <obj_property name="ElementShortName">m_axis_tready</obj_property>
+         <obj_property name="ObjectShortName">m_axis_tready</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/m_axis_tvalid">
+         <obj_property name="ElementShortName">m_axis_tvalid</obj_property>
+         <obj_property name="ObjectShortName">m_axis_tvalid</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/tb_control/u_feeder/m_axis_tlast">
+         <obj_property name="ElementShortName">m_axis_tlast</obj_property>
+         <obj_property name="ObjectShortName">m_axis_tlast</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/tb_control/u_feeder/m_axis_tdata">
+         <obj_property name="ElementShortName">m_axis_tdata[287:0]</obj_property>
+         <obj_property name="ObjectShortName">m_axis_tdata[287:0]</obj_property>
+      </wvobject>
    </wvobject>
 </wave_config>

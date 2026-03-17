@@ -21,12 +21,11 @@
 
 /* WORKS TO BE DONE
 
-BRAM FOR BIAS AND WEIGHTS SHOULD GET AN EXTERNAL ADDRESS FROM WHICH DATA IS TO BE START READING
-TOP MODULE CONTROLS THE ADDRESS OF BRAM ACCORDING TO THE NEED
-
 MAKE START LATCHED ACCORDING TO DMA SIGNALS OF HANDSHAKE
 
-pixel data should be available two clock cycles after start
+START SHOULD BE MADE ZERO NEXT CLOCK OF SENDING LAST PIXEL 
+
+START AND BRAM AND BIAS ADDRESS SHOULD COME AT SAME TIME ON NEXT CYCLE DATA COMES AND GOES TO SYSTOLIC ARRAY
 
 */
 
@@ -43,8 +42,9 @@ pixel data should be available two clock cycles after start
           
     )
     (
-        input  wire                     clk,
-        input  wire                     rst,
+        input  wire    clk,
+        input  wire    rst,   
+        input  wire    last,
 
         input  wire signed [A_WIDTH-1:0] a,
         input  wire signed [B_WIDTH-1:0] b,
@@ -52,6 +52,7 @@ pixel data should be available two clock cycles after start
         input  wire                     valid_in_w,
         output reg  [A_WIDTH-1:0] a_shifted,
         output reg  [B_WIDTH-1:0] b_shifted,
+        output reg  last_shifted,
 
         output reg  signed [ACC_WIDTH-1:0] final_out,
         output reg                      valid_out_d,
@@ -62,17 +63,18 @@ pixel data should be available two clock cycles after start
 
             wire  signed [ACC_WIDTH-1:0] acc;
             reg  signed [ACC_WIDTH-1:0] acc_out;
+            reg last_reg;
+            
             
 
             // ------------------------------------------------
             // Multiply and Accumulate (DSP)
             // ------------------------------------------------
             (* use_dsp = "yes" *)
-            localparam int CNT_W = $clog2(N+1);
-            reg [CNT_W-1:0] mac_cnt;
-
-            wire acc_done  = (mac_cnt == 0);
-            assign acc = (mac_cnt == 0)? 'b0 : acc_out;
+            
+            wire acc_done;
+            assign acc_done  = last_reg;
+            assign acc = (last_reg)? 'b0 : acc_out;
             
 
 
@@ -81,12 +83,13 @@ pixel data should be available two clock cycles after start
                 if (rst) begin
                    
                     acc_out     <= 0;
-                    mac_cnt     <= 0;
                     valid_out_d <= 0;
                     valid_out_w <= 0;
                     a_shifted   <= 0;
                     b_shifted   <= 0;
+                    last_shifted <= 0;
                     buff_sel    <= 1'b0;
+                    last_reg    <= 1'b0;
 
                 end 
 
@@ -97,13 +100,16 @@ pixel data should be available two clock cycles after start
                     b_shifted <= b;
                     valid_out_d <= 1'b1;
                     valid_out_w <= 1'b1;
+                    last_shifted <= last;
+                    last_reg <= last;
 
-                    mac_cnt <= (mac_cnt == N-1) ? 0 : mac_cnt + 1;
                     final_out <= (acc_done) ? acc_out : final_out;
                     buff_sel <= (acc_done) ? ~buff_sel : buff_sel;
                 end
                 
                 else begin
+                    last_shifted <= last;
+                    last_reg <= last;
                     valid_out_d <= 1'b0;
                     valid_out_w <= 1'b0;
                 end               
@@ -159,6 +165,42 @@ module delay #(
 
 endmodule
 
+module delay_last #(
+    parameter D = 1
+)(
+    input  logic             clk,
+    input  logic             rst,
+    input  logic             v_in,
+    output logic             v_out
+);
+
+    generate
+    if (D == 0) begin : gen_no_delay
+        assign v_out = v_in;
+    end
+    else begin : gen_delay
+        logic             shift_v [0:D-1];
+
+        assign v_out = shift_v[D-1];
+
+        always_ff @(posedge clk) begin
+            if (rst) begin
+                for (int i = 0; i < D; i++) begin
+                    shift_v[i] <= 1'b0;
+                end
+            end else begin
+                shift_v[0] <= v_in;
+
+                for (int i = 1; i < D; i++) begin
+                    shift_v[i] <= shift_v[i-1];
+                end
+            end
+        end
+    end
+endgenerate
+
+endmodule
+
 
 module Sys_array_test #
 (
@@ -175,6 +217,7 @@ module Sys_array_test #
     input rst,
     input logic valid_in_d [0:N-1],
     input logic valid_in_w [0:M-1],
+    input logic last_in_shifted [0:N-1],
     input logic signed [A_WIDTH-1:0] data_in [0:N-1],
     input logic signed [B_WIDTH-1:0] weight_in [0:M-1],
     output logic signed [OUT_WIDTH-1:0] final_out [0:N-1][0:M-1],  // truncated
@@ -192,6 +235,7 @@ module Sys_array_test #
     reg buff_ch;
     reg done;
 
+    wire   last [0:N-1][0:M];
     wire  valid_d [0:N-1][0:M];
     wire  valid_w [0:N][0:M-1];
 
@@ -233,6 +277,21 @@ module Sys_array_test #
         end     
     endgenerate
 
+    generate
+        for (i = 0; i < N; i = i + 1) begin : init_tlast
+
+        delay_last #(
+            .D        (i)
+        ) u_delay_last (
+            .clk      (clk),
+            .rst      (rst),
+            .v_in     (last_in_shifted[i]),
+            .v_out    (last[i][0])
+        );
+
+        end
+    endgenerate
+
 
     genvar j,k;
     generate
@@ -251,8 +310,10 @@ module Sys_array_test #
                     .b              (weight[j][k]),
                     .valid_in_d     (valid_d[j][k]),
                     .valid_in_w     (valid_w[j][k]),
+                    .last           (last[j][k]),
                     .a_shifted      (data[j][k+1]),
                     .b_shifted      (weight[j+1][k]),
+                    .last_shifted   (last[j][k+1]),
                     .final_out      (acc_out[j][k]),
                     .valid_out_d    (valid_d[j][k+1]),
                     .valid_out_w    (valid_w[j+1][k]),
@@ -341,6 +402,7 @@ module bram_reader #(
             kernel_ready <= bram_en;
         end
         else begin
+            bram_addr <= 'b0;
             kernel_ready <= 1'b0;
         end
 
@@ -391,7 +453,7 @@ module bias_reader #(
         end
 
         else if (started) begin
-            bias_addr <= bias_addr + 1;
+            bias_addr <= (counter == K-1)? 'b0 : bias_addr + 1;
             started <= (counter == K-1) ? 1'b0 : 1'b1;
             counter <= (counter == K-1) ? 'b0 : counter+1;
         end
@@ -407,7 +469,7 @@ module bias_reader #(
 endmodule
 
 
-module feeder#(
+module sys_feeder#(
     parameter DATA_WIDTH = 16,
     parameter ACC_WIDTH =48,
     parameter OUT_WIDTH = 32,
@@ -418,10 +480,13 @@ module feeder#(
 (
     input clk,
     input rst,
-    input start,
-    //input valid,
-    //input last,
-    input logic signed [DATA_WIDTH*N-1:0] pixel,
+
+
+    input s_axis_tvalid,
+    input s_axis_tlast,
+    input wire signed [DATA_WIDTH*N-1:0] s_axis_tdata,
+    output reg s_axis_tready,
+
     input  wire signed [DATA_WIDTH*M-1:0] bram_read, 
     input  wire signed [OUT_WIDTH*M-1:0] bias_read,     
     output reg  [DATA_WIDTH*M-1:0] bram_write,
@@ -432,28 +497,35 @@ module feeder#(
     output reg  [9:0] bias_addr,
     output wire [31:0]  bias_wr_en,
     output wire        bias_en,
-    output wire ready,
 
-    output reg [OUT_WIDTH*N-1:0] data_out
+    input  m_axis_tready,
+    output reg m_axis_tvalid,
+    output reg m_axis_tlast,
+    output reg [OUT_WIDTH*N-1:0] m_axis_tdata
     
 );
 
-    logic signed [DATA_WIDTH-1:0] data_in [0:N-1];
-    logic signed [DATA_WIDTH-1:0] weight_in [0:M-1];
-    logic signed [OUT_WIDTH-1:0] final_out [0:N-1][0:M-1]; // TRUNCATED TO OUT WIDTH
-    logic signed [OUT_WIDTH*N-1:0] bias;  //TRUNCATED TO OUT WIDTH
-    logic valid_in_d [0:N-1];
-    logic valid_in_w [0:M-1];
-    logic kernel_ready, bias_ready;
-    logic [DATA_WIDTH*M-1:0] kernel;
-    logic bias_start,acc_start,started;
-    logic [$clog2(N)-1:0] counter;
+    reg signed [DATA_WIDTH-1:0] data_in [0:N-1];
+    reg signed [DATA_WIDTH-1:0] weight_in [0:M-1];
+    reg signed [OUT_WIDTH-1:0] final_out [0:N-1][0:M-1]; // TRUNCATED TO OUT WIDTH
+    reg signed [OUT_WIDTH*N-1:0] bias;  //TRUNCATED TO OUT WIDTH
+    reg valid_in_d [0:N-1];
+    reg valid_in_w [0:M-1];
+    reg last_in_shifted [0:N-1];
+    reg kernel_ready, bias_ready;
+    reg [DATA_WIDTH*M-1:0] kernel;
+    reg bias_start,acc_start,started;
+    reg [$clog2(N)-1:0] counter;
+    wire ready;
 
-    logic signed [OUT_WIDTH*M-1:0] data_array [0:N-1];
+    reg signed [OUT_WIDTH*M-1:0] data_array [0:N-1];
 
     reg [9:0] addr_in_w;
     reg [9:0] addr_in_b;
-    //reg start;
+    reg start,last;
+
+
+
 
     genvar i, j;
     generate
@@ -478,6 +550,7 @@ module feeder#(
         .rst           (rst),
         .valid_in_d    (valid_in_d),
         .valid_in_w    (valid_in_w),
+        .last_in_shifted (last_in_shifted),
         .data_in       (data_in),
         .weight_in     (weight_in),
         .final_out     (final_out),
@@ -508,9 +581,7 @@ module feeder#(
         .clk           (clk),
         .rst           (rst),
         .bias_valid    (ready),
-        // trigger pulse
         .start         (start),
-        // run enable
         .bias_read     (bias_read),
         .bias_write    (bias_write),
         .bias          (bias),
@@ -523,14 +594,17 @@ module feeder#(
     always @(posedge clk) begin
 
         bias_start <= ready;
+        last <= s_axis_tlast;
        
         if(rst) begin
             counter <= 'b0;
             started <= 1'b0;
+            start <= 1'b0;
 
             for (int i = 0; i < N; i++) begin
                 data_in[i] <= 'b0;
                 valid_in_d[i] <='b0;
+                last_in_shifted[i] <= 1'b0;
             end
             for (int j = 0; j < M; j++) begin
                 weight_in[j] <= 'b0;
@@ -540,43 +614,58 @@ module feeder#(
         end
 
         else begin
+
+            start <= s_axis_tlast ? 1'b0 : s_axis_tvalid ? 1'b1 :start;
+            s_axis_tready <= start; 
             
             if (kernel_ready) begin
-                for (int k = 0; k < N; k++) begin
-                        data_in[k] <= pixel[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
+                if (last) begin
+                    for (int k = 0; k < N; k++) begin
+                        data_in[k] <= 'b0;
                         valid_in_d[k] <= 1'b1;
+                        last_in_shifted[k] <= s_axis_tlast;
+                    end
+                    for (int l = 0; l < M; l++) begin
+                        weight_in[l] <= 'b0;
+                        valid_in_w[l] <= 1'b1;
+                    end
+                end
+            
+            else begin
+                for (int k = 0; k < N; k++) begin
+                        data_in[k] <= s_axis_tdata[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
+                        valid_in_d[k] <= 1'b1;
+                        last_in_shifted[k] <= s_axis_tlast;
                     end
                     for (int l = 0; l < M; l++) begin
                         weight_in[l] <= kernel[(M-1-l)*DATA_WIDTH +: DATA_WIDTH];
                         valid_in_w[l] <= 1'b1;
                     end
                 end
+            end
+            
 
             else begin
                 for (int i = 0; i < N; i++) begin
-                    //data_in[i] <= 'b0;
                     valid_in_d[i] <='b0;
                 end
                 for (int j = 0; j < M; j++) begin
-                    //weight_in[j] <= 'b0;
                     valid_in_w[j] <='b0;
                 end
             end 
 
-
-            
-
             if (bias_start) begin
-                started <= 1'b1;
+                m_axis_tvalid <= 1'b1;
                 counter <= counter+1;
-                data_out <= bias + data_array[counter];
+                m_axis_tdata <= bias + data_array[counter];
             end
 
-            else if (started) begin
-                
-                started <= (counter == N-1) ? 1'b0 : 1'b1;
+            else if (m_axis_tvalid && m_axis_tready) begin
                 counter <= (counter == N-1) ? 'b0 : counter+1;
-                data_out <= bias + data_array[counter];
+                m_axis_tdata <= bias + data_array[counter];
+                m_axis_tlast <= (counter == N-1) ? 1'b1 : 1'b0;
+                m_axis_tvalid <= (counter == 0) ? 1'b0 : m_axis_tvalid;
+
             end
         end
     end
@@ -586,39 +675,6 @@ endmodule
 
 
 
-module top_control #(
-    parameter DATA_WIDTH = 16,
-    parameter ACC_WIDTH =48,
-    parameter OUT_WIDTH = 32,
-    parameter N = 9,
-    parameter M = 9
-    
-)
-(
-
-    input clk,
-    input rst,
-    input valid,
-    input last,
-    input logic [DATA_WIDTH*N-1:0] pixel,
-    input  wire [DATA_WIDTH*M-1:0] bram_read,   
-    output reg  [DATA_WIDTH*M-1:0] bram_write,
-    output reg  [9:0] bram_addr,
-    output wire [31:0]  bram_wr_en,
-    output wire        bram_en,
-
-    input  wire [DATA_WIDTH*M-1:0] bias_read,   
-    output reg  [DATA_WIDTH*M-1:0] bias_write,
-    output reg  [9:0] bias_addr,
-    output wire [31:0]  bias_wr_en,
-    output wire        bias_en,
-
-    output reg [OUT_WIDTH*N-1:0] data_out
-);
-
-
-
-endmodule
 
 
 
@@ -649,10 +705,7 @@ endmodule
 
 
 
-
-
-
-module double_buffer
+/*module double_buffer
 #(
     parameter DATA_WIDTH = 16,
     parameter N = 9,
@@ -741,5 +794,5 @@ module double_buffer
 
     end
 
-endmodule
+endmodule*/
 
