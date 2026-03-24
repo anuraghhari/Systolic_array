@@ -5,8 +5,10 @@ Running: /tools/Xilinx/Vivado/2024.2/bin/unwrapped/lnx64.o/xelab --incr --debug 
 Using 8 slave threads.
 Starting static elaboration
 Pass Through NonSizing Optimizer
-WARNING: [VRFC 10-3091] actual bit length 288 differs from formal bit length 144 for port 'bias_read' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:585]
-WARNING: [VRFC 10-3091] actual bit length 288 differs from formal bit length 144 for port 'bias' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:587]
+WARNING: [VRFC 10-3091] actual bit length 32 differs from formal bit length 18 for port 'bram_wr_en' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:629]
+WARNING: [VRFC 10-3091] actual bit length 288 differs from formal bit length 144 for port 'bias_read' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:642]
+WARNING: [VRFC 10-3091] actual bit length 288 differs from formal bit length 144 for port 'bias' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:644]
+WARNING: [VRFC 10-3091] actual bit length 32 differs from formal bit length 18 for port 'bias_wr_en' [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sources_1/new/sys_array.sv:646]
 Completed static elaboration
 Starting simulation data flow analysis
 Completed simulation data flow analysis

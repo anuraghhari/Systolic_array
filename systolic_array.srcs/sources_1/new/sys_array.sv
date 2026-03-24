@@ -376,33 +376,31 @@ module bram_reader #(
     input  wire  [9:0] addr_in_w,
     input  wire [DATA_WIDTH*M-1:0] bram_read,   
     output reg  [DATA_WIDTH*M-1:0] bram_write,
-    output  wire [DATA_WIDTH*M-1:0] kernel, 
-    output reg  [9:0] bram_addr,
-    output wire [31:0]  bram_wr_en,
+    output wire [DATA_WIDTH*M-1:0] kernel, 
+    output wire [9:0] bram_addr,
+    output wire [(DATA_WIDTH*M)/8-1:0]  bram_wr_en,
     output         bram_en,
     output reg kernel_ready
 
 );
     
-    reg  [9:0] addr_cnt;
-    assign bram_wr_en = 32'b0;
+    assign bram_wr_en = 'b0;
     
     assign kernel = bram_read;
     assign bram_en = start;
+    assign bram_addr = addr_in_w;
    
     always @(posedge clk) begin
         if (rst) begin
             kernel_ready <= 1'b0;
-            bram_addr <= 'b0;
-            addr_cnt <= 'b0;
+            //bram_addr <= 'b0;
         end
         else if (start) begin
-            bram_addr <= bram_addr+1;
-            addr_cnt <= addr_cnt + 1;
+            //bram_addr <= bram_addr+1;
             kernel_ready <= bram_en;
         end
         else begin
-            bram_addr <= 'b0;
+            //bram_addr <= 'b0;
             kernel_ready <= 1'b0;
         end
 
@@ -411,59 +409,107 @@ endmodule
 
 
 
+/*module bias_reader #(
+    parameter DATA_WIDTH = 16,
+    parameter K = 9
+)(
+    input  wire                         clk,
+    input  wire                         rst,
+    input  wire                         bias_valid,     // trigger pulse
+    input  wire [9:0]                   addr_in_b,
+    input  wire [DATA_WIDTH*K-1:0]      bias_read,
+    output reg  [DATA_WIDTH*K-1:0]      bias_write,
+    output wire [DATA_WIDTH*K-1:0]      bias,
+    output wire [9:0]                   bias_addr,
+    output wire [(DATA_WIDTH*K)/8-1:0]  bias_wr_en,
+    output reg                          bias_en,
+    output reg                          bias_data_valid  // 1 cycle after bias_en, data is ready
+);
+
+    logic [$clog2(K)-1:0] counter;
+
+    assign bias_wr_en = '0;
+    assign bias       = bias_read;
+    assign bias_addr  = addr_in_b;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            bias_en         <= 1'b0;
+            bias_data_valid <= 1'b0;
+            counter         <= '0;
+        end
+
+        else if (bias_valid) begin
+            bias_en         <= 1'b1;   // enable BRAM, addr=0 this cycle
+            bias_data_valid <= 1'b0;   // data not ready yet (BRAM needs 1 cycle)
+            counter         <= '0;
+        end
+
+        else if (bias_en) begin
+            bias_data_valid <= 1'b1;   // data is valid NOW (1 cycle after en)
+
+            if (counter == K-1) begin
+                bias_en         <= 1'b0;   // stop after K reads
+                bias_data_valid <= 1'b0;   // last data consumed this cycle
+                counter         <= '0;
+            end
+            else begin
+                counter <= counter + 1;
+            end
+        end
+
+        else begin
+            bias_data_valid <= 1'b0;
+        end
+    end
+
+endmodule*/
 
 module bias_reader #(
     parameter DATA_WIDTH = 16,
     parameter K = 9
 )(
-    input  wire                     clk,
-    input  wire                     rst,
-    input  wire                     bias_valid,   // trigger pulse
-    input  wire                     start,        // run enable
-    input  wire [DATA_WIDTH*K-1:0]  bias_read,
-
-    output reg  [DATA_WIDTH*K-1:0]  bias_write,
-    output wire [DATA_WIDTH*K-1:0]  bias,
-    output reg  [9:0]               bias_addr,
-    output wire [31:0]              bias_wr_en,
-    output reg                      bias_en,
-    output reg                     bias_ready
+    input  wire                         clk,
+    input  wire                         rst,
+    input  wire                         bias_valid,
+    input  wire                         tlast_sent,     // NEW: en goes low on tlast
+    input  wire [9:0]                   addr_in_b,
+    input  wire [DATA_WIDTH*K-1:0]      bias_read,
+    output reg  [DATA_WIDTH*K-1:0]      bias_write,
+    output wire [DATA_WIDTH*K-1:0]      bias,
+    output wire [9:0]                   bias_addr,
+    output wire [(DATA_WIDTH*K)/8-1:0]  bias_wr_en,
+    output reg                          bias_en,
+    output reg                          bias_data_valid
 );
 
-    reg       started;   // sticky latch
-    logic [$clog2(K)-1:0] counter;
-
-    assign bias_wr_en = 32'b0;
+    assign bias_wr_en = '0;
     assign bias       = bias_read;
+    assign bias_addr  = addr_in_b;
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            bias_addr   <= '0;
-            bias_en     <= 1'b0;
-            started     <= 1'b0;
-            bias_ready <= 1'b0;
-            counter <= 'b0;
+            bias_en         <= 1'b0;
+            bias_data_valid <= 1'b0;
         end
-
 
         else if (bias_valid) begin
-            started <= 1'b1;
-            bias_addr <= bias_addr + 1;
-            counter <= counter + 1;
+            bias_en         <= 1'b1;   // turn on when result ready
+            bias_data_valid <= 1'b0;
         end
 
-        else if (started) begin
-            bias_addr <= (counter == K-1)? 'b0 : bias_addr + 1;
-            started <= (counter == K-1) ? 1'b0 : 1'b1;
-            counter <= (counter == K-1) ? 'b0 : counter+1;
+        else if (tlast_sent) begin
+            bias_en         <= 1'b0;   // turn off ONLY when tlast accepted
+            bias_data_valid <= 1'b0;
         end
 
-        else if (start) begin
-            bias_en <= 1'b1;
+        else if (bias_en) begin
+            bias_data_valid <= 1'b1;   // data valid 1 cycle after en
         end
 
-
-        
+        else begin
+            bias_data_valid <= 1'b0;
+        end
     end
 
 endmodule
@@ -524,6 +570,17 @@ module sys_feeder#(
     reg [9:0] addr_in_b;
     reg start,last;
 
+    reg bias_start_d;
+    reg tvalid_d;
+    reg [9:0] addr_in_w_saved,addr_in_b_saved;   // holds address at moment of stall
+    reg stream_active;
+    reg bias_data_valid;  
+    reg output_active;
+    reg bp_latched;
+
+    wire tlast_sent = m_axis_tvalid && m_axis_tready && m_axis_tlast;
+    wire bias_pause   = m_axis_tvalid && !m_axis_tready;
+
 
 
 
@@ -573,33 +630,47 @@ module sys_feeder#(
         .bram_en         (bram_en),
         .kernel_ready    (kernel_ready)
     );
-
-       bias_reader #(
-        .DATA_WIDTH    (DATA_WIDTH),
-        .K             (M)
+    
+        bias_reader #(
+        .DATA_WIDTH (16), .K (9)
     ) u_bias_reader (
-        .clk           (clk),
-        .rst           (rst),
-        .bias_valid    (ready),
-        .start         (start),
-        .bias_read     (bias_read),
-        .bias_write    (bias_write),
-        .bias          (bias),
-        .bias_addr     (bias_addr),
-        .bias_wr_en    (bias_wr_en),
-        .bias_en       (bias_en)
+        .clk            (clk),
+        .rst            (rst),
+        .bias_valid     (ready),
+        .tlast_sent     (tlast_sent),   // en goes low here
+        .addr_in_b      (addr_in_b),
+        .bias_read      (bias_read),
+        .bias_write     (bias_write),
+        .bias           (bias),
+        .bias_addr      (bias_addr),
+        .bias_wr_en     (bias_wr_en),
+        .bias_en        (bias_en),
+        .bias_data_valid(bias_data_valid)
     );
         
 
     always @(posedge clk) begin
 
-        bias_start <= ready;
         last <= s_axis_tlast;
+        bias_start<=ready;
+        bias_start_d <= bias_start;
        
         if(rst) begin
             counter <= 'b0;
             started <= 1'b0;
             start <= 1'b0;
+            tvalid_d <= 1'b0;
+            addr_in_w_saved <= 'b0;
+            addr_in_w <= 'b0;
+            addr_in_b_saved <= 'b0;
+            addr_in_b <= 'b0;
+            stream_active <= 1'b0;
+
+            m_axis_tvalid  <= 1'b0;
+            m_axis_tlast   <= 1'b0;
+            m_axis_tdata   <= '0;
+            output_active  <= 1'b0;
+
 
             for (int i = 0; i < N; i++) begin
                 data_in[i] <= 'b0;
@@ -614,10 +685,46 @@ module sys_feeder#(
         end
 
         else begin
-
-            start <= s_axis_tlast ? 1'b0 : s_axis_tvalid ? 1'b1 :start;
-            s_axis_tready <= start; 
+         
+           // stream_active: set on first tvalid after idle, cleared after tlast
+            stream_active <= s_axis_tlast  ? 1'b0 :
+                             s_axis_tvalid ? 1'b1 :
+                             stream_active;
             
+            tvalid_d <= s_axis_tvalid & stream_active;
+            
+            start         <= tvalid_d;
+            s_axis_tready <= start;
+                        
+            
+            if (s_axis_tvalid && start) begin
+                addr_in_w       <= addr_in_w + 1;
+                addr_in_w_saved <= addr_in_w;     // save address BEFORE increment
+            end
+            else begin
+                addr_in_w <= addr_in_w_saved;
+            end
+
+            if (ready) begin
+                addr_in_b <= '0;
+                bp_latched <= 1'b0;
+            end
+            else if (bias_pause & !bp_latched) begin
+                // tready just went low or is still low —
+                // hold addr at (current - 1) so BRAM re-presents
+                // the value that hasn't been consumed yet
+                addr_in_b <= addr_in_b - 1;
+                bp_latched <= 1'b1;
+            end
+            else if (!bias_pause && bp_latched ) begin
+                bp_latched <= 1'b0;            // clear latch when tready returns
+            end
+
+            else if (bias_en && !bias_pause) begin
+                addr_in_b  <= addr_in_b + 1;  // normal advance
+            end
+            
+
             if (kernel_ready) begin
                 if (last) begin
                     for (int k = 0; k < N; k++) begin
@@ -631,19 +738,19 @@ module sys_feeder#(
                     end
                 end
             
-            else begin
-                for (int k = 0; k < N; k++) begin
-                        data_in[k] <= s_axis_tdata[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
-                        valid_in_d[k] <= 1'b1;
-                        last_in_shifted[k] <= s_axis_tlast;
+                else begin
+                    for (int k = 0; k < N; k++) begin
+                            data_in[k] <= s_axis_tdata[(N-1-k)*DATA_WIDTH +: DATA_WIDTH];
+                            valid_in_d[k] <= 1'b1;
+                            last_in_shifted[k] <= s_axis_tlast;
+                        end
+                        for (int l = 0; l < M; l++) begin
+                            weight_in[l] <= kernel[(M-1-l)*DATA_WIDTH +: DATA_WIDTH];
+                            valid_in_w[l] <= 1'b1;
+                        end
                     end
-                    for (int l = 0; l < M; l++) begin
-                        weight_in[l] <= kernel[(M-1-l)*DATA_WIDTH +: DATA_WIDTH];
-                        valid_in_w[l] <= 1'b1;
-                    end
-                end
             end
-            
+                
 
             else begin
                 for (int i = 0; i < N; i++) begin
@@ -654,24 +761,39 @@ module sys_feeder#(
                 end
             end 
 
-            if (bias_start) begin
-                m_axis_tvalid <= 1'b1;
-                counter <= counter+1;
-                m_axis_tdata <= bias + data_array[counter];
+            if (bias_start_d) begin
+                // First word — present it, wait for handshake
+                m_axis_tvalid  <= 1'b1;
+                m_axis_tlast   <= (N == 1) ? 1'b1 : 1'b0;
+                m_axis_tdata   <= bias + data_array[counter];
+              //  output_active  <= 1'b1;
+                // DO NOT increment counter yet — wait for tready
             end
 
             else if (m_axis_tvalid && m_axis_tready) begin
-                counter <= (counter == N-1) ? 'b0 : counter+1;
-                m_axis_tdata <= bias + data_array[counter];
-                m_axis_tlast <= (counter == N-1) ? 1'b1 : 1'b0;
-                m_axis_tvalid <= (counter == 0) ? 1'b0 : m_axis_tvalid;
-
+                // Handshake complete — DMA accepted this word
+                
+                if (counter == N-1) begin
+                    // Last word sent
+                    m_axis_tvalid <= 1'b0;
+                    m_axis_tlast  <= 1'b0;
+                    counter       <= '0;
+                   // output_active <= 1'b0;
+                end
+                else begin
+                    // More words to send — load next
+                    counter      <= counter + 1;
+                    m_axis_tdata <= bias + data_array[counter + 1];
+                    m_axis_tlast <= (counter + 1 == N-1) ? 1'b1 : 1'b0;
+                    // tvalid stays 1
+                end
             end
         end
     end
 
 
 endmodule
+
 
 
 

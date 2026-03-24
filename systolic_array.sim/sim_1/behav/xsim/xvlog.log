@@ -8,5 +8,3 @@ INFO: [VRFC 10-311] analyzing module bias_reader
 INFO: [VRFC 10-311] analyzing module sys_feeder
 INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sim_1/new/test.sv" into library xil_defaultlib
 INFO: [VRFC 10-311] analyzing module tb_control
-WARNING: [VRFC 10-3248] data object 's_axis_tready' is already declared [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sim_1/new/test.sv:182]
-WARNING: [VRFC 10-9364] second declaration of 's_axis_tready' is ignored [/home/anuragh-haridas/Projects/systolic_array/systolic_array.srcs/sim_1/new/test.sv:182]
