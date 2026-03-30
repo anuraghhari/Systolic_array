@@ -80,7 +80,7 @@ START AND BRAM AND BIAS ADDRESS SHOULD COME AT SAME TIME ON NEXT CYCLE DATA COME
 
             always @(posedge clk) begin
 
-                if (~rst) begin
+                if (rst) begin
                    
                     acc_out     <= 0;
                     valid_out_d <= 0;
@@ -145,7 +145,7 @@ module delay #(
         assign v_out = shift_v[D-1];
 
         always_ff @(posedge clk) begin
-            if (~rst) begin
+            if (rst) begin
                 for (int i = 0; i < D; i++) begin
                     shift_d[i] <= '0;
                     shift_v[i] <= 1'b0;
@@ -184,7 +184,7 @@ module delay_last #(
         assign v_out = shift_v[D-1];
 
         always_ff @(posedge clk) begin
-            if (~rst) begin
+            if (rst) begin
                 for (int i = 0; i < D; i++) begin
                     shift_v[i] <= 1'b0;
                 end
@@ -328,7 +328,7 @@ module Sys_array_test #
     
 
     always_ff @(posedge clk) begin
-        if (~rst) begin
+        if (rst) begin
             for (int r = 0; r < N; r = r + 1)
                 for (int c = 0; c < M; c = c + 1) begin
                     acc_out1[r][c] <= '0;
@@ -353,7 +353,7 @@ module Sys_array_test #
             if (ready) begin
                 for (int r = 0; r < N; r++)
                     for (int c = 0; c < M; c++)
-                        final_out[r][c] <= buff_ch ? acc_out2[r][c][OUT_WIDTH-1:0] : acc_out1[r][c][OUT_WIDTH-1:0];
+                        final_out[r][c] = buff_sel[N-1][M-1] ? acc_out2[r][c][OUT_WIDTH-1:0] : acc_out1[r][c][OUT_WIDTH-1:0];
             end   
         end
     end
@@ -391,7 +391,7 @@ module bram_reader #(
     assign bram_addr = addr_in_w;
    
     always @(posedge clk) begin
-        if (~rst) begin
+        if (rst) begin
             kernel_ready <= 1'b0;
             //bram_addr <= 'b0;
         end
@@ -409,7 +409,7 @@ endmodule
 
 
 module bias_reader #(
-    parameter DATA_WIDTH = 32,
+    parameter DATA_WIDTH = 16,
     parameter K = 9
 )(
     input  wire                         clk,
@@ -431,7 +431,7 @@ module bias_reader #(
     assign bias_addr  = addr_in_b;
 
     always_ff @(posedge clk) begin
-        if (~rst) begin
+        if (rst) begin
             bias_en         <= 1'b0;
             bias_data_valid <= 1'b0;
         end
@@ -602,7 +602,7 @@ module sys_feeder#(
         last <= s_axis_tlast;
         
        
-        if(~rst) begin
+        if(rst) begin
             counter <= 'b0;
             started <= 1'b0;
             start <= 1'b0;

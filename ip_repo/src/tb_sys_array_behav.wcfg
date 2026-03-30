@@ -11,9 +11,9 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="0.000 ns"></ZoomStartTime>
-      <ZoomEndTime time="684.001 ns"></ZoomEndTime>
-      <Cursor1Time time="2,395.000 ns"></Cursor1Time>
+      <ZoomStartTime time="1,633.402 ns"></ZoomStartTime>
+      <ZoomEndTime time="2,141.903 ns"></ZoomEndTime>
+      <Cursor1Time time="1,860.000 ns"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="78"></NameColumnWidth>
@@ -113,7 +113,7 @@
    <wvobject type="array" fp_name="/tb_control/u_feeder/final_out">
       <obj_property name="ElementShortName">final_out[0:8][0:8][31:0]</obj_property>
       <obj_property name="ObjectShortName">final_out[0:8][0:8][31:0]</obj_property>
-      <obj_property name="Radix">SIGNEDDECRADIX</obj_property>
+      <obj_property name="Radix">HEXRADIX</obj_property>
    </wvobject>
    <wvobject type="array" fp_name="/tb_control/u_feeder/data_array">
       <obj_property name="ElementShortName">data_array[0:8][287:0]</obj_property>

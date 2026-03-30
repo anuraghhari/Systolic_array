@@ -331,7 +331,7 @@ module tb_control;
     // Main test sequence
     // ==================================================
     initial begin
-        rst           = 0;
+        rst           = 1;
         s_axis_tvalid = 0;
         s_axis_tlast  = 0;
         s_axis_tdata  = '0;
@@ -349,7 +349,7 @@ module tb_control;
 
         repeat (4) @(posedge clk);
         @(negedge clk);
-        rst = 1;
+        rst = 0;
         repeat (2) @(posedge clk);
 
         // ======================================================
